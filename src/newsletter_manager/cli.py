@@ -3,6 +3,7 @@
 import argparse
 import csv
 import json
+import re
 import sys
 import time
 from datetime import datetime, timedelta
@@ -228,6 +229,13 @@ class NewsletterCLI:
             console.print("Creating label hierarchy...")
             self.label_manager.create_newsletter_labels(categories)
 
+        def chunked(items, size):
+            for i in range(0, len(items), size):
+                yield items[i : i + size]
+
+        def is_valid_gmail_id(value: str) -> bool:
+            return bool(re.fullmatch(r"[0-9a-f]{16,}", value))
+
         organized_count = 0
 
         with Progress(
@@ -238,15 +246,34 @@ class NewsletterCLI:
             for newsletter in newsletters:
                 category = newsletter["category"]
                 sender_email = newsletter["sender_email"]
+                newsletter_id = newsletter["id"]
+                label_name = f"Newsletters/{category}" if category else "Newsletters"
 
                 if category:
-                    label_name = f"Newsletters/{category}"
                     organized_count += 1
                     progress.console.print(f"  [green]✓[/green] {sender_email} → {label_name}")
                 else:
                     progress.console.print(
                         f"  [yellow]![/yellow] {sender_email} → [dim]Newsletters[/dim] (uncategorized)"
                     )
+
+                if not args.dry_run:
+                    messages = self.db.get_messages_by_newsletter(newsletter_id)
+                    message_ids = [
+                        message["id"]
+                        for message in messages
+                        if message.get("id") and is_valid_gmail_id(message["id"])
+                    ]
+                    skipped = len(messages) - len(message_ids)
+                    if skipped:
+                        progress.console.print(
+                            f"  [yellow]![/yellow] Skipped {skipped} invalid message IDs"
+                        )
+                    for batch in chunked(message_ids, 100):
+                        try:
+                            self.label_manager.apply_label_to_messages(batch, label_name)
+                        except GogCLIError as error:
+                            progress.console.print(f"  [red]✗[/red] {error}")
 
                 progress.advance(task)
 

@@ -45,9 +45,10 @@ config.yaml
 takeout-*.zip
 All mail*.mbox
 
-# Test files (not part of test suite)
-test_*.py
-test_*.log
+# Temporary test/scratch files (not part of test suite)
+# Note: Keep tests/ directory and tests/test_*.py for the actual test suite
+/test_*.py
+/test_*.log
 scan_*.sh
 
 # IDE

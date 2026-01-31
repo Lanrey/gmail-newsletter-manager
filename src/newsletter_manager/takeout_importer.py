@@ -7,13 +7,12 @@ import mailbox
 from datetime import datetime
 from email.header import decode_header, make_header
 from email.utils import parsedate_to_datetime
-from typing import Dict, List, Optional, Tuple
 
 from .database import Database
 from .newsletter_detector import NewsletterDetector
 
 
-def _decode_header(value: Optional[str]) -> str:
+def _decode_header(value: str | None) -> str:
     if not value:
         return ""
     try:
@@ -22,7 +21,7 @@ def _decode_header(value: Optional[str]) -> str:
         return value
 
 
-def _parse_date(value: Optional[str]) -> str:
+def _parse_date(value: str | None) -> str:
     if not value:
         return datetime.now().isoformat()
     try:
@@ -34,26 +33,28 @@ def _parse_date(value: Optional[str]) -> str:
         return datetime.now().isoformat()
 
 
-def _extract_labels(msg) -> List[str]:
-    labels_header = msg.get('X-Gmail-Labels') or msg.get('X-GM-LABELS') or msg.get('X-Gmail-Labels'.lower())
+def _extract_labels(msg) -> list[str]:
+    labels_header = (
+        msg.get("X-Gmail-Labels") or msg.get("X-GM-LABELS") or msg.get("X-Gmail-Labels".lower())
+    )
     if not labels_header:
         return []
-    return [part.strip() for part in labels_header.split(',') if part.strip()]
+    return [part.strip() for part in labels_header.split(",") if part.strip()]
 
 
 def _extract_message_id(msg) -> str:
-    gm_id = msg.get('X-GM-MSGID') or msg.get('X-Gmail-Message-ID')
+    gm_id = msg.get("X-GM-MSGID") or msg.get("X-Gmail-Message-ID")
     if gm_id:
         return str(gm_id).strip()
 
-    message_id = msg.get('Message-ID') or msg.get('Message-Id')
+    message_id = msg.get("Message-ID") or msg.get("Message-Id")
     if message_id:
-        return message_id.strip('<> ')
+        return message_id.strip("<> ")
 
     # Fallback: stable hash
-    from_header = _decode_header(msg.get('From', ''))
-    subject = _decode_header(msg.get('Subject', ''))
-    date_str = _parse_date(msg.get('Date'))
+    from_header = _decode_header(msg.get("From", ""))
+    subject = _decode_header(msg.get("Subject", ""))
+    date_str = _parse_date(msg.get("Date"))
     raw = f"{from_header}|{subject}|{date_str}"
     return f"mbox:{hashlib.sha1(raw.encode('utf-8')).hexdigest()}"
 
@@ -62,10 +63,10 @@ def import_mbox(
     mbox_path: str,
     detector: NewsletterDetector,
     db: Database,
-    max_messages: Optional[int] = None,
+    max_messages: int | None = None,
     dry_run: bool = False,
     progress_callback=None,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Import a Gmail Takeout MBOX file.
 
     Returns:
@@ -80,16 +81,16 @@ def import_mbox(
         if max_messages and processed >= max_messages:
             break
 
-        from_header = _decode_header(msg.get('From', ''))
-        subject = _decode_header(msg.get('Subject', ''))
-        date_iso = _parse_date(msg.get('Date'))
+        from_header = _decode_header(msg.get("From", ""))
+        subject = _decode_header(msg.get("Subject", ""))
+        date_iso = _parse_date(msg.get("Date"))
         labels = _extract_labels(msg)
 
-        message_dict: Dict = {
-            'from': from_header,
-            'subject': subject,
-            'date': date_iso,
-            'labels': labels,
+        message_dict: dict = {
+            "from": from_header,
+            "subject": subject,
+            "date": date_iso,
+            "labels": labels,
         }
 
         is_newsletter, platform, _reasons = detector.is_newsletter(message_dict)
@@ -109,7 +110,7 @@ def import_mbox(
             )
 
             message_id = _extract_message_id(msg)
-            is_read = 'UNREAD' not in labels
+            is_read = "UNREAD" not in labels
 
             if not dry_run:
                 db.add_message(

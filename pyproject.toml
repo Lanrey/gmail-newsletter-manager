@@ -67,7 +67,13 @@ where = ["src"]
 
 [tool.black]
 line-length = 100
+target-version = ["py38"]
+
+[tool.ruff]
+line-length = 100
 target-version = "py38"
+
+[tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
@@ -83,7 +89,7 @@ ignore = [
     "C901",  # too complex
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 
 [tool.isort]
@@ -96,6 +102,3 @@ use_parentheses = true
 ensure_newline_before_comments = true
 target-version = ["py38"]
 
-[tool.ruff]
-line-length = 100
-target-version = "py38"

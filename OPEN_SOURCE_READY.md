@@ -175,7 +175,7 @@ python -m build
 ## 🙏 Acknowledgments
 
 - Built on [gogcli](https://github.com/steipete/gogcli) by Peter Steinberger
-- Uses Click, Rich, PyYAML, and other excellent Python libraries
+- Uses argparse (stdlib), Rich, PyYAML, and other excellent Python libraries
 - Inspired by the need to tame newsletter overload
 
 ## 📞 Support

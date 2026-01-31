@@ -55,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Configurable delays between requests
   - Batch size management
   - Progress callbacks
-- **CLI Interface**: Rich command-line interface with click
+- **CLI Interface**: Rich command-line interface with argparse
   - Discover command with pagination
   - Label management commands
   - Account management commands

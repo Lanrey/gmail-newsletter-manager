@@ -39,7 +39,7 @@ Configuration & Data (created at runtime):
 ### Core Components
 
 #### 1. CLI Interface (`cli.py`)
-- Built with Click framework
+- Built with argparse (Python stdlib)
 - Rich terminal output (tables, colors, progress bars)
 - Commands: discover, list, organize, cleanup, report, export, etc.
 - Handles user interaction and error display
@@ -170,15 +170,16 @@ Display report
 ## Extension Points
 
 ### Adding New Commands
-Add a new command function decorated with `@main.command()` in `cli.py`:
+Add a new command method to the NewsletterCLI class in `cli.py`:
 
 ```python
-@main.command()
-@click.option('--your-option', help='Description')
-@click.pass_context
-def your_command(ctx, your_option):
+def cmd_your_command(self, args):
     """Your command description."""
     # Implementation
+
+# Then add the parser in main():
+parser_your_cmd = subparsers.add_parser('your-command', help='Description')
+parser_your_cmd.add_argument('--your-option', help='Option description')
 ```
 
 ### Adding New Categories
@@ -277,7 +278,7 @@ Future: Allow custom plugins for:
 ### Required
 - Python 3.8+
 - gogcli (external binary)
-- click (CLI framework)
+- argparse (CLI framework - Python stdlib)
 - rich (terminal output)
 - pyyaml (configuration parsing)
 - requests (HTTP client)

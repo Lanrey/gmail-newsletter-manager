@@ -155,12 +155,14 @@ pytest tests/ --cov=newsletter_manager --cov-report=html
 ### Adding a New Command
 1. Add command function to `src/newsletter_manager/cli.py`:
    ```python
-   @main.command()
-   @click.option('--your-option', help='Description')
-   @click.pass_context
-   def your_command(ctx, your_option):
+   # Add to NewsletterCLI class
+   def cmd_your_command(self, args):
        """Command description."""
        # Implementation
+       
+   # Add parser in main() function
+   parser_your_cmd = subparsers.add_parser('your-command', help='Description')
+   parser_your_cmd.add_argument('--your-option', help='Option description')
    ```
 
 2. Add tests in `tests/test_cli.py`

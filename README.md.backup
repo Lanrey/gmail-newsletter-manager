@@ -1,0 +1,142 @@
+# Gmail Newsletter Manager
+
+Intelligent Gmail newsletter management utility built on [gogcli](https://github.com/steipete/gogcli).
+
+## Features
+
+- 📧 **Auto-detect newsletters** using headers, patterns, and sender analysis
+- 🏷️ **Smart organization** with hierarchical labels (Newsletters/Category/Source)
+- 🧹 **Bulk cleanup** - archive, delete, or mark as read
+- 📊 **Analytics** - engagement reports and reading stats
+- 🚫 **Unsubscribe assistant** - find and manage unwanted newsletters
+- 📤 **Export** - save newsletter inventory to CSV/JSON
+- 🔍 **Advanced search** - search across newsletters only
+
+## Prerequisites
+
+1. **gogcli** must be installed and configured
+   ```bash
+   brew install steipete/tap/gogcli
+   # or build from source
+   ```
+
+2. **Authenticate with gogcli**
+   ```bash
+   gog auth add your@gmail.com
+   export GOG_ACCOUNT=your@gmail.com
+   ```
+
+## Installation
+
+```bash
+# Clone the repository
+git clone <repo-url>
+cd gmail-newsletter-manager
+
+# Install in development mode
+pip install -e .
+
+# Or install with dev dependencies
+pip install -e ".[dev]"
+```
+
+## Quick Start
+
+```bash
+# Discover newsletters in your inbox
+newsletter-manager discover
+
+# List all detected newsletters
+newsletter-manager list
+
+# Organize newsletters with auto-categorization
+newsletter-manager organize --auto-categorize
+
+# Create Gmail filters for auto-labeling
+newsletter-manager create-filters
+
+# View engagement report
+newsletter-manager report
+
+# Find newsletters you never read
+newsletter-manager recommend-unsubscribe
+
+# Cleanup old newsletters
+newsletter-manager cleanup --older-than 30d
+```
+
+## Usage
+
+### Discovery
+```bash
+newsletter-manager discover [--days 90] [--min-frequency 2]
+newsletter-manager list [--category Tech] [--unread-only]
+newsletter-manager stats [--sender sender@example.com]
+```
+
+### Organization
+```bash
+newsletter-manager organize [--dry-run] [--auto-categorize]
+newsletter-manager label <sender> <category/subcategory>
+newsletter-manager create-filters [--dry-run]
+```
+
+### Management
+```bash
+newsletter-manager cleanup [--older-than 30d] [--unread-only]
+newsletter-manager archive <category|sender> [--older-than 7d]
+newsletter-manager unsubscribe [--show-links] [--never-read]
+newsletter-manager pause <sender|category>
+newsletter-manager resume <sender|category>
+```
+
+### Analytics
+```bash
+newsletter-manager report [--period 30d]
+newsletter-manager engagement [--min-open-rate 10]
+newsletter-manager recommend-unsubscribe
+```
+
+### Utilities
+```bash
+newsletter-manager export [--format csv|json]
+newsletter-manager search <query> [--newsletters-only]
+newsletter-manager mark-read <category|sender>
+newsletter-manager digest [--daily|--weekly]
+```
+
+## Configuration
+
+Configuration file: `~/.gmail-newsletter-manager/config.yaml`
+
+```yaml
+categories:
+  Tech:
+    keywords: [programming, developer, tech, software, coding]
+    domains: [dev.to, hashnode.com, medium.com]
+  Business:
+    keywords: [business, entrepreneur, startup, marketing]
+  News:
+    keywords: [news, daily, briefing, today]
+
+newsletter_patterns:
+  - "list-unsubscribe"
+  - "newsletter"
+  - "digest"
+  - "weekly update"
+  - "monthly roundup"
+
+known_platforms:
+  - substack.com
+  - beehiiv.com
+  - mailchimp.com
+  - constantcontact.com
+  - convertkit.com
+
+auto_archive_days: 30
+min_frequency_for_newsletter: 2
+```
+
+## License
+
+MIT License

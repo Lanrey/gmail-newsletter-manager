@@ -1,0 +1,66 @@
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+*.egg
+dist/
+build/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.so
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.nox/
+.hypothesis/
+.pytype/
+cov.xml
+*.cover
+*.log
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Configuration (contains sensitive data)
+config.yaml
+.gmail-newsletter-manager/
+
+# Gmail Takeout files (large and user-specific)
+*.mbox
+*.zip
+takeout-*.zip
+All mail*.mbox
+
+# Test files (not part of test suite)
+test_*.py
+test_*.log
+scan_*.sh
+
+# IDE
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.iml
+.python-version
+
+# Project-specific temp files
+PROJECT_COMPLETE.txt
+PROJECT_SUMMARY.md
+STRUCTURE.txt

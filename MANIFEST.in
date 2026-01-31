@@ -1,0 +1,19 @@
+include README.md
+include LICENSE
+include CONTRIBUTING.md
+include SECURITY.md
+include CHANGELOG.md
+include config.example.yaml
+include pyproject.toml
+include setup.cfg
+include .flake8
+include .editorconfig
+recursive-include src *.py
+recursive-include tests *.py
+recursive-include docs *.md
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude .DS_Store
+prune test_*
+prune scan_*

@@ -1,0 +1,126 @@
+# Gmail Newsletter Manager - Example Configuration
+# Copy this file to ~/.gmail-newsletter-manager/config.yaml and customize
+
+# Database location (stores newsletter information and scan history)
+db_path: ~/.gmail-newsletter-manager/newsletters.db
+
+# Gmail accounts to manage
+# Add multiple accounts for multi-account support
+accounts:
+  - your.email@gmail.com
+  # - another.account@gmail.com
+
+# Default account to use when --account flag is not specified
+default_account: your.email@gmail.com
+
+# Newsletter detection thresholds
+detection:
+  # Minimum emails per month to consider as newsletter
+  min_frequency: 2
+  
+  # Number of days to look back for frequency calculation
+  frequency_window_days: 90
+
+# Newsletter categories
+# Customize these categories based on your interests
+categories:
+  Technology:
+    - tech
+    - engineering
+    - software
+    - developer
+    - programming
+    - coding
+    
+  Business:
+    - business
+    - finance
+    - startup
+    - entrepreneur
+    - marketing
+    
+  News:
+    - news
+    - daily
+    - digest
+    - briefing
+    - update
+    
+  Design:
+    - design
+    - ux
+    - ui
+    - creative
+    
+  Education:
+    - learning
+    - course
+    - tutorial
+    - training
+    
+  Health:
+    - health
+    - fitness
+    - wellness
+    - nutrition
+    
+  Entertainment:
+    - entertainment
+    - media
+    - music
+    - gaming
+
+# Newsletter detection patterns
+# Patterns to identify newsletters from subject lines and sender addresses
+patterns:
+  newsletters:
+    - newsletter
+    - digest
+    - weekly
+    - daily
+    - briefing
+    - roundup
+    - update
+    
+  unsubscribe:
+    - unsubscribe
+    - opt-out
+    - manage preferences
+    
+  sender_indicators:
+    - news@
+    - newsletter@
+    - updates@
+    - no-reply@
+    - noreply@
+    - notifications@
+
+# Label management
+labels:
+  # Root label for all newsletters
+  root: Newsletters
+  
+  # Apply labels automatically after discovery
+  auto_apply: true
+  
+  # Create hierarchical structure (Newsletters/Category/Source)
+  hierarchical: true
+
+# Rate limiting (to avoid Gmail API rate limits)
+rate_limiting:
+  # Delay between API requests (seconds)
+  request_delay: 2.0
+  
+  # Maximum messages to fetch per batch
+  batch_size: 500
+  
+  # Maximum messages to scan in one discovery run
+  max_scan_per_run: 10000
+
+# Logging
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: INFO
+  
+  # Log file location (optional)
+  # file: ~/.gmail-newsletter-manager/app.log

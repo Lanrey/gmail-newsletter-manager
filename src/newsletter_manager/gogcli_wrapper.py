@@ -4,7 +4,7 @@ import json
 import os
 import subprocess
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class GogCLIError(Exception):
@@ -96,6 +96,39 @@ class GogCLI:
             return {"threads": result}
         return {"threads": []}
 
+    def _handle_rate_limit_error(
+        self, error_str: str, retry: int, max_retries: int, progress_callback, all_count: int
+    ) -> bool:
+        """Handle rate limit error with exponential backoff.
+
+        Args:
+            error_str: Error string to check
+            retry: Current retry attempt
+            max_retries: Maximum retry attempts
+            progress_callback: Callback for progress updates
+            all_count: Current count of results
+
+        Returns:
+            True if should retry, False otherwise
+        """
+        is_rate_limit = "rateLimitExceeded" in error_str or "429" in error_str or "403" in error_str
+        if not is_rate_limit:
+            return False
+
+        if retry < max_retries - 1:
+            wait_time = (retry + 2) * 20
+            if progress_callback:
+                progress_callback(
+                    f"⏱️ Rate limited, waiting {wait_time}s (retry {retry + 1}/{max_retries})",
+                    all_count,
+                )
+            time.sleep(wait_time)
+            return True
+
+        if progress_callback:
+            progress_callback(f"⚠️ Max retries reached after {all_count} messages", all_count)
+        return False
+
     def search_all_messages(
         self,
         query: str,
@@ -127,49 +160,28 @@ class GogCLI:
             if progress_callback:
                 progress_callback(page_count, len(all_threads))
 
-            # Adaptive rate limiting - increase delay after failures
-            current_delay = rate_limit_delay * (1 + consecutive_failures)
+            # Adaptive rate limiting
             if page_count > 1:
-                # Extra delay every 10 pages to be safe
+                current_delay = rate_limit_delay * (1 + consecutive_failures)
                 delay = current_delay * (2 if page_count % 10 == 0 else 1)
                 time.sleep(delay)
 
             # Retry logic for rate limit errors
-            retry_count = 0
-            for retry in range(max_retries):
-                try:
-                    result = self.search_messages(
-                        query, max_results=page_size, page_token=page_token
-                    )
-                    consecutive_failures = 0  # Reset on success
-                    break
-                except GogCLIError as e:
-                    error_str = str(e)
-                    if "rateLimitExceeded" in error_str or "429" in error_str or "403" in error_str:
-                        retry_count = retry + 1
-                        if retry < max_retries - 1:
-                            wait_time = (
-                                retry + 2
-                            ) * 20  # Exponential backoff: 20s, 40s, 60s, 80s, 100s
-                            if progress_callback:
-                                progress_callback(
-                                    f"⏱️ Rate limited, waiting {wait_time}s (retry {retry_count}/{max_retries})",
-                                    len(all_threads),
-                                )
-                            time.sleep(wait_time)
-                            consecutive_failures += 1
-                            continue
-                        else:
-                            # Max retries reached
-                            consecutive_failures += 1
-                            if progress_callback:
-                                progress_callback(
-                                    f"⚠️ Max retries reached after {len(all_threads)} messages",
-                                    len(all_threads),
-                                )
-                    raise
+            result = self._fetch_with_retry(
+                query,
+                page_size,
+                page_token,
+                max_retries,
+                progress_callback,
+                len(all_threads),
+                consecutive_failures,
+            )
 
-            threads = result.get("threads", [])
+            if result is None:
+                break
+
+            result_dict, consecutive_failures = result
+            threads = result_dict.get("threads", [])
 
             if not threads:
                 break
@@ -182,11 +194,46 @@ class GogCLI:
                 break
 
             # Check for next page
-            page_token = result.get("nextPageToken")
+            page_token = result_dict.get("nextPageToken")
             if not page_token:
                 break
 
         return all_threads
+
+    def _fetch_with_retry(
+        self,
+        query: str,
+        page_size: int,
+        page_token: Optional[str],
+        max_retries: int,
+        progress_callback,
+        all_count: int,
+        consecutive_failures: int,
+    ) -> Optional[Tuple[Dict, int]]:
+        """Fetch messages with retry logic.
+
+        Args:
+            query: Search query
+            page_size: Page size
+            page_token: Page token
+            max_retries: Max retries
+            progress_callback: Progress callback
+            all_count: Current count
+            consecutive_failures: Failure count
+
+        Returns:
+            Tuple of (result dict, updated failure count) or None on failure
+        """
+        for retry in range(max_retries):
+            try:
+                result = self.search_messages(query, max_results=page_size, page_token=page_token)
+                return result, 0
+            except GogCLIError as e:
+                if self._handle_rate_limit_error(
+                    str(e), retry, max_retries, progress_callback, all_count
+                ):
+                    return None, consecutive_failures + 1
+                raise
 
     def get_message(self, message_id: str, format: str = "full") -> Dict:
         """Get a specific message.

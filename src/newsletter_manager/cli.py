@@ -110,9 +110,12 @@ class NewsletterCLI:
                     from_email = self.detector._get_from_email(message)
                     from_name = self.detector._get_from_name(message)
                     subject = message.get("subject", "")
+                    snippet = message.get("snippet", "")
                     date_str = self.detector._get_date(message)
 
-                    category = self.detector.categorize_newsletter(from_email, subject)
+                    category, confidence = self.detector.categorize_newsletter(
+                        from_email, subject, snippet
+                    )
 
                     newsletter_id = self.db.upsert_newsletter(
                         sender_email=from_email,
@@ -450,9 +453,76 @@ class NewsletterCLI:
         self.config.remove_account(args.email)
         console.print(f"[green]✓ Removed account:[/green] {args.email}")
 
+    def cmd_train_topics(self, args):
+        """Train topic modeling for newsletter categorization."""
+        from .topic_modeler import TopicModeler
 
-def main():
-    """Main entry point for CLI."""
+        console.print("[bold blue]Training topic model...[/bold blue]")
+
+        # Get all newsletters from database
+        newsletters = self.db.get_all_newsletters()
+
+        if not newsletters:
+            console.print("[yellow]No newsletters found. Run 'discover' first.[/yellow]")
+            return
+
+        if len(newsletters) < 50:
+            console.print(
+                f"[yellow]Warning: Only {len(newsletters)} newsletters found. "
+                "Consider discovering more for better topic modeling.[/yellow]"
+            )
+
+        # Get messages for each newsletter to extract subjects and snippets
+        console.print(f"Preparing training data from {len(newsletters)} newsletters...")
+
+        training_data = []
+        for newsletter in newsletters[: args.max_newsletters]:
+            messages = self.db.get_messages_by_newsletter(newsletter["id"])
+            if messages:
+                # Use first message as representative
+                msg = messages[0]
+                training_data.append(
+                    (newsletter["sender_email"], msg["subject"], msg.get("snippet", ""))
+                )
+
+        if not training_data:
+            console.print("[red]Error: No message data available for training[/red]")
+            return
+
+        console.print(f"Training on {len(training_data)} newsletters...")
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Training LDA model...", total=None)
+
+            # Train model
+            modeler = TopicModeler(n_topics=args.n_topics, min_df=args.min_df, max_df=args.max_df)
+            topic_words = modeler.train(training_data)
+
+            progress.update(task, description="Saving model...")
+
+            # Save model
+            model_path = self.config.config_dir / "topic_model.pkl"
+            modeler.save_model(model_path)
+
+            progress.update(task, description="Complete!")
+
+        console.print(f"\n[green]✓ Model trained and saved to:[/green] {model_path}")
+        console.print("\n[bold]Discovered Topics:[/bold]")
+
+        for topic_id, words in topic_words.items():
+            label = modeler.topic_labels.get(topic_id, f"Topic_{topic_id}")
+            console.print(f"\n  {label} (Topic {topic_id}):")
+            console.print(f"    {', '.join(words[:8])}")
+
+        console.print("\n[dim]Topic model will be automatically used for categorization[/dim]")
+
+
+def _setup_parsers():
+    """Setup all CLI argument parsers."""
     parser = argparse.ArgumentParser(
         prog="newsletter-manager",
         description="Gmail Newsletter Manager - Intelligent newsletter management",
@@ -546,16 +616,31 @@ def main():
     parser_account_remove.add_argument("email", help="Email address")
     parser_account_remove.add_argument("--force", action="store_true", help="Skip confirmation")
 
-    args = parser.parse_args()
+    # train-topics command
+    parser_train = subparsers.add_parser(
+        "train-topics", help="Train topic model for smart categorization"
+    )
+    parser_train.add_argument(
+        "--n-topics", type=int, default=10, help="Number of topics to discover (default: 10)"
+    )
+    parser_train.add_argument(
+        "--min-df", type=int, default=2, help="Minimum document frequency (default: 2)"
+    )
+    parser_train.add_argument(
+        "--max-df", type=float, default=0.7, help="Maximum document frequency (default: 0.7)"
+    )
+    parser_train.add_argument(
+        "--max-newsletters",
+        type=int,
+        default=1000,
+        help="Max newsletters to train on (default: 1000)",
+    )
 
-    if not args.command:
-        parser.print_help()
-        sys.exit(0)
+    return parser
 
-    cli = NewsletterCLI()
-    cli.initialize(account=args.account)
 
-    # Route to appropriate command handler
+def _handle_commands(cli, args):
+    """Route commands to appropriate handlers."""
     if args.command == "discover":
         cli.cmd_discover(args)
     elif args.command == "list":
@@ -570,19 +655,36 @@ def main():
         cli.cmd_export(args)
     elif args.command == "import-takeout":
         cli.cmd_import_takeout(args)
+    elif args.command == "train-topics":
+        cli.cmd_train_topics(args)
     elif args.command == "account":
-        if args.account_command == "list":
-            cli.cmd_account_list(args)
-        elif args.account_command == "add":
-            cli.cmd_account_add(args)
-        elif args.account_command == "set-default":
-            cli.cmd_account_set_default(args)
-        elif args.account_command == "remove":
-            cli.cmd_account_remove(args)
-        else:
-            parser_account.print_help()
-    else:
+        _handle_account_commands(cli, args)
+
+
+def _handle_account_commands(cli, args):
+    """Handle account subcommands."""
+    if args.account_command == "list":
+        cli.cmd_account_list(args)
+    elif args.account_command == "add":
+        cli.cmd_account_add(args)
+    elif args.account_command == "set-default":
+        cli.cmd_account_set_default(args)
+    elif args.account_command == "remove":
+        cli.cmd_account_remove(args)
+
+
+def main():
+    """Main entry point for CLI."""
+    parser = _setup_parsers()
+    args = parser.parse_args()
+
+    if not args.command:
         parser.print_help()
+        sys.exit(0)
+
+    cli = NewsletterCLI()
+    cli.initialize(account=args.account)
+    _handle_commands(cli, args)
 
 
 if __name__ == "__main__":

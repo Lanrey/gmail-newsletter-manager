@@ -12,12 +12,13 @@ Take control of your newsletter subscriptions with automated detection, smart ca
 ## ✨ Features
 
 - 📧 **Smart Newsletter Detection** - Automatically identify newsletters using advanced heuristics (headers, patterns, frequency analysis)
+- 🤖 **Hybrid AI Categorization** - ML-powered topic modeling with keyword fallback for intelligent categorization
 - 🏷️ **Hierarchical Labels** - Organize with nested labels: `Newsletters/Technology/Dev Weekly`
 - 📊 **Multi-Account Support** - Manage newsletters across multiple Gmail accounts
 - 🔄 **Label Migration** - Bulk move existing labels into organized hierarchies
 - 📥 **Takeout Import** - Import and analyze newsletters from Gmail Takeout (MBOX format)
 - 📈 **Statistics & Reports** - View engagement metrics and newsletter inventory
-- 🎯 **Auto-Categorization** - Intelligent categorization based on content and sender
+- 🎯 **Topic Modeling** - LDA-based unsupervised learning discovers newsletter topics automatically
 - 💾 **SQLite Database** - Fast local storage with scan history and analytics
 - 🔧 **Flexible Configuration** - YAML-based configuration with customizable patterns and categories
 
@@ -246,6 +247,31 @@ newsletter-manager import-takeout /path/to/All\ mail.mbox
 
 # Dry run
 newsletter-manager import-takeout /path/to/file.mbox --dry-run
+
+# Limit messages
+newsletter-manager import-takeout /path/to/file.mbox --max-messages 10000
+```
+
+### Topic Modeling (ML-Powered Categorization)
+
+Train a machine learning model to automatically categorize newsletters:
+
+```bash
+# Train topic model on existing newsletters
+newsletter-manager train-topics
+
+# Specify number of topics (default: 10)
+newsletter-manager train-topics --n-topics 12
+
+# Advanced training options
+newsletter-manager train-topics --n-topics 15 --min-df 2 --max-df 0.7 --max-newsletters 1000
+```
+
+The hybrid approach:
+1. **Topic Model (Primary)**: Uses LDA to discover topics from your newsletters
+2. **Keywords (Fallback)**: Uses config.yaml keywords when model confidence is low
+
+See [Topic Modeling Guide](docs/TOPIC_MODELING.md) for detailed information.
 
 # Limit number of messages
 newsletter-manager import-takeout /path/to/file.mbox --max-messages 10000

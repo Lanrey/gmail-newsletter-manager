@@ -44,6 +44,114 @@ class NewsletterDetector:
         self.config = config
         self.patterns = config.get_newsletter_patterns()
         self.platforms = config.get_known_platforms()
+        self.topic_model = None
+
+        # Try to load pre-trained topic model
+        self._load_topic_model()
+
+    def _load_topic_model(self) -> None:
+        """Load pre-trained topic model if available."""
+        try:
+            from newsletter_manager.topic_modeler import TopicModeler
+
+            model_path = self.config.config_dir / "topic_model.pkl"
+            if model_path.exists():
+                self.topic_model = TopicModeler.load_model(model_path)
+        except (ImportError, FileNotFoundError, Exception):
+            # Topic model not available - will use keyword-based fallback
+            self.topic_model = None
+
+    def _check_newsletter_indicators(
+        self, message: Dict, is_thread: bool
+    ) -> Tuple[List[str], Optional[str]]:
+        """Check various indicators to identify newsletters.
+
+        Args:
+            message: Message dictionary
+            is_thread: Whether message is in thread format
+
+        Returns:
+            Tuple of (reasons list, platform)
+        """
+        reasons = []
+        from_email = self._get_from_email(message)
+        from_domain = self._extract_domain(from_email)
+        subject = message.get("subject", "").lower()
+
+        # Check List-Unsubscribe header
+        if not is_thread:
+            headers = self._get_headers(message)
+            if "list-unsubscribe" in headers:
+                reasons.append("has_list_unsubscribe_header")
+
+        # Check sender domain
+        platform = self._check_platform_domain(from_domain, reasons)
+
+        # Check subject patterns
+        for pattern in self.patterns + self.NEWSLETTER_INDICATORS:
+            if pattern.lower() in subject:
+                reasons.append(f"subject_contains:{pattern}")
+
+        # Check category labels for threads
+        if is_thread:
+            self._check_thread_labels(message, reasons)
+
+        # Check snippet keywords
+        self._check_snippet_keywords(message, reasons)
+
+        # Check bulk sender pattern
+        if self._is_bulk_sender(from_email):
+            reasons.append("bulk_sender_pattern")
+
+        return reasons, platform
+
+    def _check_platform_domain(self, from_domain: str, reasons: List[str]) -> Optional[str]:
+        """Check if sender is from known platform domain.
+
+        Args:
+            from_domain: Sender domain
+            reasons: List to append reasons to
+
+        Returns:
+            Platform name if found
+        """
+        for platform_domain in self.platforms + self.NEWSLETTER_PLATFORMS:
+            if platform_domain in from_domain:
+                reasons.append(f"from_platform:{platform_domain}")
+                return platform_domain
+        return None
+
+    def _check_thread_labels(self, message: Dict, reasons: List[str]) -> None:
+        """Check category labels for thread messages.
+
+        Args:
+            message: Message dictionary
+            reasons: List to append reasons to
+        """
+        labels = message.get("labels", [])
+        if "CATEGORY_PROMOTIONS" in labels:
+            reasons.append("promotional_category")
+        if "CATEGORY_UPDATES" in labels:
+            reasons.append("updates_category")
+
+    def _check_snippet_keywords(self, message: Dict, reasons: List[str]) -> None:
+        """Check for newsletter keywords in snippet.
+
+        Args:
+            message: Message dictionary
+            reasons: List to append reasons to
+        """
+        snippet = message.get("snippet", "").lower() if "snippet" in message else ""
+        newsletter_keywords = [
+            "unsubscribe",
+            "view in browser",
+            "preference center",
+            "manage subscription",
+            "view online",
+        ]
+        for keyword in newsletter_keywords:
+            if keyword in snippet:
+                reasons.append(f"body_contains:{keyword}")
 
     def is_newsletter(self, message: Dict) -> Tuple[bool, Optional[str], List[str]]:
         """Determine if a message is a newsletter.
@@ -54,61 +162,11 @@ class NewsletterDetector:
         Returns:
             Tuple of (is_newsletter, platform, reasons)
         """
-        reasons = []
-        platform = None
-
-        # Check if this is a thread object (from search) or full message
+        # Check if thread or full message format
         is_thread = "from" in message and "payload" not in message
 
-        # Extract message details
-        from_email = self._get_from_email(message)
-        from_domain = self._extract_domain(from_email)
-        subject = message.get("subject", "").lower()
-
-        # For full messages, check List-Unsubscribe header
-        if not is_thread:
-            headers = self._get_headers(message)
-            if "list-unsubscribe" in headers:
-                reasons.append("has_list_unsubscribe_header")
-
-        # Check sender domain against known platforms
-        for platform_domain in self.platforms + self.NEWSLETTER_PLATFORMS:
-            if platform_domain in from_domain:
-                reasons.append(f"from_platform:{platform_domain}")
-                platform = platform_domain
-                break
-
-        # Check subject line for newsletter patterns
-        for pattern in self.patterns + self.NEWSLETTER_INDICATORS:
-            if pattern.lower() in subject:
-                reasons.append(f"subject_contains:{pattern}")
-
-        # Check for typical newsletter structure keywords
-        newsletter_keywords = [
-            "unsubscribe",
-            "view in browser",
-            "preference center",
-            "manage subscription",
-            "view online",
-        ]
-
-        # Check snippet/body if available (thread format has labels we can check)
-        if is_thread:
-            labels = message.get("labels", [])
-            # Promotional emails often indicate newsletters
-            if "CATEGORY_PROMOTIONS" in labels:
-                reasons.append("promotional_category")
-            if "CATEGORY_UPDATES" in labels:
-                reasons.append("updates_category")
-
-        snippet = message.get("snippet", "").lower() if "snippet" in message else ""
-        for keyword in newsletter_keywords:
-            if keyword in snippet:
-                reasons.append(f"body_contains:{keyword}")
-
-        # Check for bulk sender patterns
-        if self._is_bulk_sender(from_email):
-            reasons.append("bulk_sender_pattern")
+        # Get newsletter indicators
+        reasons, platform = self._check_newsletter_indicators(message, is_thread)
 
         # Determine if it's a newsletter (need at least 2 indicators or 1 strong one)
         is_newsletter = (
@@ -270,8 +328,43 @@ class NewsletterDetector:
 
         return datetime.now().isoformat()
 
-    def categorize_newsletter(self, sender_email: str, subject: str = "") -> Optional[str]:
-        """Auto-categorize a newsletter based on sender and subject.
+    def categorize_newsletter(
+        self, sender_email: str, subject: str = "", snippet: str = ""
+    ) -> Tuple[Optional[str], float]:
+        """Auto-categorize a newsletter using hybrid approach.
+
+        Uses topic modeling if available, falls back to keyword matching.
+
+        Args:
+            sender_email: Sender email address
+            subject: Email subject
+            snippet: Email snippet/preview text
+
+        Returns:
+            Tuple of (category name or None, confidence)
+        """
+        # Try topic model first if available
+        if self.topic_model is not None:
+            try:
+                topic_id, topic_label, confidence = self.topic_model.predict_topic(
+                    sender_email, subject, snippet
+                )
+
+                # Only use topic model result if confidence is high enough
+                if confidence >= 0.3:
+                    return topic_label, confidence
+            except Exception:
+                # Fall through to keyword-based approach
+                pass
+
+        # Fallback to keyword-based categorization
+        category = self._categorize_by_keywords(sender_email, subject)
+        confidence = 0.8 if category else 0.0
+
+        return category, confidence
+
+    def _categorize_by_keywords(self, sender_email: str, subject: str) -> Optional[str]:
+        """Categorize newsletter using keyword matching.
 
         Args:
             sender_email: Sender email address
